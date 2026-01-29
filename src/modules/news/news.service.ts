@@ -3,8 +3,17 @@ import { CreateNewsDto } from './dto/create-news.dto';
 import { UpdateNewsDto } from './dto/update-news.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { NewsItemResponse } from './types/index.type';
-import { NEWS_ERROR } from './constants/index.constant';
+import {
+  NewsItemResponse,
+  NewsListResponse,
+  NewsQueryParams,
+} from './types/index.type';
+import {
+  NEWS_DEFAULT,
+  NEWS_DEFAULTS,
+  NEWS_ERROR,
+  NEWS_ERRORS,
+} from './constants/index.constant';
 import { getImagePublicUrl } from '../../common/utils/file-upload.util';
 import { generateSlug } from '../../common/utils/slug.util';
 import { Prisma } from '@prisma/client';
@@ -78,6 +87,7 @@ export class NewsService {
       content: dto.content,
       isActive: dto.isActive,
       slug: slug,
+      imageUrl: imageUrl,
     };
     const updated = await this.prisma.news.update({
       where: { id },
@@ -89,13 +99,62 @@ export class NewsService {
     });
     return { updated: updated };
   }
-  async findAll(): Promise<{ news: NewsItemResponse[] }> {
-    const news = await this.prisma.news.findMany({
+  async findById(id: string): Promise<{ news: NewsItemResponse }> {
+    const exist = await this.prisma.news.findUnique({
+      where: { id: id },
       include: {
         user: { select: { id: true, email: true, fullName: true } },
         category: { select: { id: true, title: true, slug: true } },
       },
     });
-    return { news: news };
+    if (!exist) {
+      throw new BadRequestException(NEWS_ERROR.NOT_FOUND);
+    }
+    return { news: exist };
+  }
+  async findAll(query: NewsQueryParams): Promise<{ news: NewsListResponse }> {
+    const {
+      page = NEWS_DEFAULT.PAGE,
+      limit = NEWS_DEFAULT.LIMIT,
+      categoryId,
+      sortBy,
+      orderBy,
+    } = query;
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.prisma.news.findMany({
+        where: {
+          categoryId: categoryId ?? undefined,
+          isActive: true,
+        },
+        skip: skip,
+        take: Math.min(limit, NEWS_DEFAULT.MAX_LIMIT),
+        orderBy: {
+          [sortBy ?? NEWS_DEFAULT.SORT_BY]: orderBy ?? NEWS_DEFAULT.SORT_ORDER,
+        },
+        include: {
+          user: { select: { id: true, email: true, fullName: true } },
+          category: { select: { id: true, title: true, slug: true } },
+        },
+      }),
+      this.prisma.news.count({
+        where: {
+          categoryId: categoryId ?? undefined,
+          isActive: true,
+        },
+      }),
+    ]);
+
+    return {
+      news: {
+        items,
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
+    };
   }
 }
