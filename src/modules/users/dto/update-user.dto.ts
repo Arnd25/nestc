@@ -1,36 +1,22 @@
-import {
-  IsEmail,
-  IsEnum,
-  IsOptional,
-  IsString,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { Role } from '@prisma/client';
-import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateUserDto {
   @IsOptional()
-  @IsEmail({}, { message: 'Введите корректный email!' })
-  @ApiProperty()
+  @IsEmail({}, { message: 'Введите корректный email' })
   email?: string;
 
-  @IsOptional()
   @IsString()
-  @MinLength(6, { message: 'Минимальная длинна пароля 6 символов!' })
-  @MaxLength(12, { message: 'Максимальная длинна пароля 6 символов!' })
-  @ApiProperty()
+  @IsOptional()
+  @MinLength(6, { message: 'Минимальная длина пароля 6 символов' })
+  @MaxLength(12, { message: 'Максимальная длина пароля 12 символов' })
   password?: string;
 
-  @IsOptional()
-  @ApiProperty()
   @IsString()
+  @IsOptional()
   fullName?: string;
 
-  @ApiProperty()
   @IsOptional()
-  @IsEnum(Role, {
-    message: 'Роль должна быть одной из следующих: USER или ADMIN!',
-  })
+  @IsEnum(Role, { message: 'Роль должна быть одной из следующих: USER или ADMIN' })
   role?: Role;
 }

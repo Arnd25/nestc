@@ -1,4 +1,4 @@
-export const NEWS_DEFAULT = {
+export const NEWS_DEFAULTS = {
   PAGE: 1,
   LIMIT: 10,
   MAX_LIMIT: 50,
@@ -6,13 +6,15 @@ export const NEWS_DEFAULT = {
   SORT_ORDER: 'desc' as const,
   SLUG_SEPARATOR: '-',
 } as const;
-export const NEWS_ERROR = {
+
+export const NEWS_ERRORS = {
   NOT_FOUND: 'Новость не найдена или не существует',
-  SLUG_CONFLICT: 'Новость с таким Slug ужен существует',
+  SLUG_CONFLICT: 'Новость с таким slug уже существует',
   CATEGORY_NOT_FOUND: 'Категория не найдена или не существует',
   UNAUTHORIZED: 'Авторизуйтесь с правами администратора',
   IMAGE_REQUIRED_ON_CREATE: 'Изображение не было загружено',
 } as const;
+
 export const NEWS_VALIDATORS = {
   TITLE_MIN: 5,
   TITLE_MAX: 200,

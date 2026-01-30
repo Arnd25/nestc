@@ -1,13 +1,9 @@
-import {
-  ConflictException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload, TokenPair } from './types/index.type';
-import { RequestWithUser } from '../../common/type/shared.type';
+import { RequestWithUser } from '../../common/types/shared.type';
 import { Response } from 'express';
 import { AuthResponseConstant } from './constants/auth-response.constant';
 import * as argon2 from 'argon2';
@@ -19,19 +15,19 @@ import { LoginDto } from './dto/login.dto';
 export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
-    private readonly prismaService: PrismaService,
     private readonly configService: ConfigService,
+    private readonly prismaService: PrismaService,
   ) {}
-  async register(
-    dto: RegisterDto,
-    res: Response,
-  ): Promise<AuthResponseConstant> {
+
+  async register(dto: RegisterDto, res: Response): Promise<AuthResponseConstant> {
     const existing = await this.prismaService.user.findUnique({
       where: { email: dto.email },
     });
+
     if (existing) {
-      throw new ConflictException('Пользователь с таким email уже существует');
+      throw new ConflictException('Пользователь с таким email уже существует!');
     }
+
     const user = await this.prismaService.user.create({
       data: {
         email: dto.email,
@@ -40,13 +36,11 @@ export class AuthService {
         role: Role.USER,
       },
     });
-    const generatedToken = await this.generateToken(
-      user.id,
-      user.email,
-      user.role,
-    );
+
+    const generatedToken = await this.generateToken(user.id, user.email, user.role);
     await this.updateRefreshTokenInDB(user.id, generatedToken.refreshToken);
     this.setTokenCookies(res, generatedToken);
+
     return {
       user: {
         id: user.id,
@@ -62,12 +56,15 @@ export class AuthService {
     const user = await this.prismaService.user.findUnique({
       where: { email: dto.email },
     });
+
     if (!user || !(await argon2.verify(user.password, dto.password))) {
-      throw new UnauthorizedException('Неверный логин или пароль!');
+      throw new UnauthorizedException('Неверный логин и/или пароль');
     }
+
     const token = await this.generateToken(user.id, user.email, user.role);
     await this.updateRefreshTokenInDB(user.id, token.refreshToken);
     this.setTokenCookies(res, token);
+
     return {
       user: {
         id: user.id,
@@ -79,44 +76,45 @@ export class AuthService {
     };
   }
 
-  async logout(
-    user: RequestWithUser['user'],
-    res: Response,
-  ): Promise<{ message: string }> {
+  async logout(user: RequestWithUser['user'], res: Response): Promise<{ message: string }> {
     await this.updateRefreshTokenInDB(user.userId, null);
     this.clearTokenCookies(res);
+
     return { message: 'Вы успешно вышли из системы!' };
   }
 
-  async refresh(
-    request: RequestWithUser,
-    res: Response,
-  ): Promise<AuthResponseConstant> {
+  async refresh(request: RequestWithUser, res: Response): Promise<AuthResponseConstant> {
     const refreshToken = request.cookies?.refresh_token;
     if (!refreshToken) {
-      throw new UnauthorizedException('Resfresh-токен не найден!');
+      throw new UnauthorizedException('Refresh-токен не найден!');
     }
+
     let payload: JwtPayload;
     try {
       payload = await this.jwtService.verifyAsync<JwtPayload>(refreshToken, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
     } catch {
-      throw new UnauthorizedException('не валидный refresh-токен');
+      throw new UnauthorizedException('Не валидный refresh-токен');
     }
+
     const user = await this.prismaService.user.findUnique({
       where: { id: payload.sub },
     });
+
     if (!user || !user.refreshToken) {
       throw new UnauthorizedException('Такого пользователя не существует!');
     }
+
     const isValid = await argon2.verify(user.refreshToken, refreshToken);
     if (!isValid) {
       throw new UnauthorizedException('Неверный refresh-токен');
     }
+
     const token = await this.generateToken(user.id, user.email, user.role);
     await this.updateRefreshTokenInDB(user.id, token.refreshToken);
     this.setTokenCookies(res, token);
+
     return {
       user: {
         id: user.id,
@@ -127,10 +125,8 @@ export class AuthService {
       },
     };
   }
-  private async updateRefreshTokenInDB(
-    userId: string,
-    refreshToken: string | null,
-  ) {
+
+  private async updateRefreshTokenInDB(userId: string, refreshToken: string | null) {
     const hashToken = refreshToken ? await argon2.hash(refreshToken) : null;
     await this.prismaService.user.update({
       where: { id: userId },
@@ -138,46 +134,43 @@ export class AuthService {
     });
   }
 
-  private async generateToken(
-    userId: string,
-    email: string,
-    role: Role,
-  ): Promise<TokenPair> {
+  private async generateToken(userId: string, email: string, role: Role): Promise<TokenPair> {
     const payload: JwtPayload = { sub: userId, email: email, role: role };
     const [accessToken, refreshToken] = await Promise.all([
+      // access
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
-        expiresIn: this.configService.getOrThrow('JWT_ACCESS_EXPIRES_IN'),
+        expiresIn: this.configService.getOrThrow('JWT_ACCESS_EXPIRES_IN') as any,
       }),
+      // refresh
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.configService.getOrThrow('JWT_REFRESH_EXPIRES_IN'),
+        expiresIn: this.configService.getOrThrow('JWT_REFRESH_EXPIRES_IN') as any,
       }),
     ]);
+
     return { accessToken, refreshToken };
+
   }
+
   private setTokenCookies(res: Response, pair: TokenPair) {
     const isSecure = this.configService.get<boolean>('COOKIE_SECURE') ?? false;
-    const sameSite =
-      this.configService.get<'lax' | 'strict' | 'none'>('COOKIE_SAMESITE') ??
-      'lax';
+    const sameSite = this.configService.get<'lax' | 'strict' | 'none'>('COOKIE_SAMESITE') ?? 'lax';
+
     res.cookie('access_token', pair.accessToken, {
       httpOnly: true,
       secure: isSecure,
       sameSite: sameSite,
       path: '/',
-      maxAge: this.parseDuration(
-        this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '15m',
-      ),
+      maxAge: this.parseDuration(this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '15m')
     });
+
     res.cookie('refresh_token', pair.refreshToken, {
       httpOnly: true,
       secure: isSecure,
       sameSite: sameSite,
-      path: '/',
-      maxAge: this.parseDuration(
-        this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '15m',
-      ),
+      path: '/api/auth/refresh',
+      maxAge: this.parseDuration(this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d')
     });
   }
 

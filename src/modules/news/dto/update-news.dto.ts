@@ -1,24 +1,21 @@
-import {
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateNewsDto {
   @IsString()
-  @MinLength(4, { message: 'Минимальной кол-во символов 4' })
-  @MaxLength(200)
   @IsOptional()
+  @MinLength(4, { message: 'Минимальное кол-во символов 4' })
+  @MaxLength(200, { message: 'Максимальное кол-во символов 200' })
   title?: string;
+
   @IsString()
   @IsOptional()
-  @MinLength(20, { message: 'Минимальной кол-во символов 20' })
+  @MinLength(20, { message: 'Минимальное кол-во символов 20' })
   content?: string;
+
   @IsOptional()
   isActive?: boolean;
-  @IsUUID(4, { message: 'неправильный формат id' })
+
   @IsOptional()
+  @IsUUID(4, { message: 'Не правильный формат id' })
   categoryId?: string;
 }

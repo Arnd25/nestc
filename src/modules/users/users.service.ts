@@ -23,12 +23,12 @@ export class UsersService {
         role: true,
         createdAt: true,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
+
     return { users: users };
   }
+
   async findOne(id: string): Promise<{ user: UserResponseType }> {
     const user = await this.prismaService.user.findUnique({
       where: { id: id },
@@ -40,9 +40,11 @@ export class UsersService {
         createdAt: true,
       },
     });
+
     if (!user) {
-      throw new NotFoundException(`Пользователь с id ${id} не найден`);
+      throw new NotFoundException(`Пользователь с id ${id} не найден!`);
     }
+
     return { user: user };
   }
 
@@ -58,13 +60,12 @@ export class UsersService {
         select: {
           id: true,
           email: true,
-          password: true,
           fullName: true,
           role: true,
           createdAt: true,
         },
       });
-      return { user };
+      return { user: user };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -78,27 +79,20 @@ export class UsersService {
     }
   }
 
-  async update(
-    id: string,
-    dto: UpdateUserDto,
-  ): Promise<{ user: UserResponseType }> {
+  async update(userId: string, dto: UpdateUserDto): Promise<{ user: UserResponseType; message: string }> {
     const data: Partial<Prisma.UserUpdateInput> = {};
-    const existing = await this.prismaService.user.findUnique({
-      where: { id },
-    });
-    if (!existing) {
-      throw new NotFoundException();
-    }
+
     if (dto.email) data.email = dto.email;
     if (dto.fullName) data.fullName = dto.fullName;
     if (dto.role) data.role = dto.role;
+
     if (dto.password) {
       data.refreshToken = null;
       data.password = await hashString(dto.password);
     }
 
     const user = await this.prismaService.user.update({
-      where: { id },
+      where: { id: userId },
       data: data,
       select: {
         id: true,
@@ -108,17 +102,19 @@ export class UsersService {
         createdAt: true,
       },
     });
-    return { user };
+    return { user: user, message: 'Информация успешно обновлена!' };
   }
 
-  async delete(id: string): Promise<{ message: string; status: boolean }> {
+  async remove(userId: string): Promise<{ message: string; status: boolean }> {
     const existing = await this.prismaService.user.findUnique({
-      where: { id: id },
+      where: { id: userId },
     });
+
     if (!existing) {
-      throw new NotFoundException('');
+      throw new NotFoundException('Пользователь не найден или не существует!');
     }
-    await this.prismaService.user.delete({ where: { id } });
-    return { message: 'пользователь удален', status: true };
+
+    await this.prismaService.user.delete({ where: { id: userId } });
+    return { message: 'Пользователь успешно удален!', status: true };
   }
 }

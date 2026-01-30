@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 import { Request } from 'express';
 import { extname } from 'path';
-import { v4 as uuid4 } from 'uuid';
+import { v4 as uuidv4 } from 'uuid';
 import { diskStorage } from 'multer';
 
 export const multerImageOptions = (
@@ -46,7 +46,7 @@ export const multerImageOptions = (
         file: Express.Multer.File,
         callback: (error: Error | null, filename: string) => void,
       ) => {
-        const uniqueName = `${uuid4()}${extname(file.originalname).toLowerCase()}`;
+        const uniqueName = `${uuidv4()}${extname(file.originalname).toLowerCase()}`;
         callback(null, uniqueName);
       },
     }),

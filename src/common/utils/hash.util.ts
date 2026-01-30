@@ -9,9 +9,6 @@ export const hashString = async (plain: string): Promise<string> => {
   });
 };
 
-export const verifyString = async (
-  hash: string,
-  plain: string,
-): Promise<boolean> => {
+export const verifyString = async (hash: string, plain: string): Promise<boolean> => {
   return argon2.verify(hash, plain);
 };

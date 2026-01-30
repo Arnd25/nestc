@@ -1,16 +1,12 @@
 import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
   @IsEmail({}, { message: 'Задан некорректный email адрес!' })
-  @ApiProperty()
   email: string;
-  @IsString({ message: 'Пароль должен быть строкой!' })
-  @MinLength(6, { message: 'Минимальное количество символов должно быть 6!' })
-  @MaxLength(6, { message: 'Максимальное количество символов должно быть 6!' })
-  @ApiProperty()
+  @IsString({ message: 'Поле пароль должен быть строкой' })
+  @MinLength(6, { message: 'Минимальное кол-во символов должно быть равно 6' })
+  @MaxLength(12, { message: 'Максимальное кол-во символов должно быть равно 12' })
   password: string;
-  @IsString({ message: 'Имя пользователя должно быть строкой!' })
-  @ApiProperty()
+  @IsString({ message: 'Поле имя пользователя - должно быть строкой' })
   fullName: string;
 }

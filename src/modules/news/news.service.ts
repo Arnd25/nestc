@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { CreateNewsDto } from './dto/create-news.dto';
-import { UpdateNewsDto } from './dto/update-news.dto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -8,48 +10,96 @@ import {
   NewsListResponse,
   NewsQueryParams,
 } from './types/index.type';
-import {
-  NEWS_DEFAULT,
-  NEWS_DEFAULTS,
-  NEWS_ERROR,
-  NEWS_ERRORS,
-} from './constants/index.constant';
+import { CreateNewsDto } from './dto/create-news.dto';
+import { NEWS_DEFAULTS, NEWS_ERRORS } from './constants/index.constant';
 import { getImagePublicUrl } from '../../common/utils/file-upload.util';
 import { generateSlug } from '../../common/utils/slug.util';
+import { UpdateNewsDto } from './dto/update-news.dto';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class NewsService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prismaService: PrismaService,
     private readonly configService: ConfigService,
   ) {}
+
+  async findAll(query: NewsQueryParams): Promise<{ news: NewsListResponse }> {
+    const {
+      isActive,
+      page = NEWS_DEFAULTS.PAGE,
+      limit = NEWS_DEFAULTS.LIMIT,
+      categoryId,
+      sortBy,
+      order,
+    } = query;
+
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.prismaService.news.findMany({
+        where: {
+          categoryId: categoryId ?? undefined,
+          isActive: isActive ?? false,
+        },
+        skip: skip,
+        take: Math.min(limit, NEWS_DEFAULTS.MAX_LIMIT),
+        orderBy: {
+          [sortBy || NEWS_DEFAULTS.SORT_BY]: order || NEWS_DEFAULTS.SORT_ORDER,
+        },
+        include: {
+          user: { select: { id: true, email: true, fullName: true } },
+          category: { select: { id: true, title: true, slug: true } },
+        },
+      }),
+      this.prismaService.news.count({
+        where: {
+          categoryId: categoryId ?? undefined,
+          isActive: isActive ?? false,
+        },
+      }),
+    ]);
+
+    return {
+      news: {
+        items,
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   async create(
-    createNewsDto: CreateNewsDto,
+    dto: CreateNewsDto,
     file: Express.Multer.File | undefined,
     authorId: string,
   ): Promise<{ news: NewsItemResponse }> {
     if (!file) {
-      throw new BadRequestException(NEWS_ERROR.IMAGE_REQUIRED_ON_CREATE);
+      throw new BadRequestException(NEWS_ERRORS.IMAGE_REQUIRED_ON_CREATE);
     }
+
     const imageUrl = getImagePublicUrl(file.filename, this.configService);
-    const categoryExists = createNewsDto.categoryId
-      ? await this.prisma.category.findUnique({
-          where: { id: createNewsDto.categoryId },
+
+    const categoryExists = dto.categoryId
+      ? await this.prismaService.category.findUnique({
+          where: { id: dto.categoryId },
         })
       : null;
 
-    if (!createNewsDto.categoryId && !categoryExists) {
-      throw new BadRequestException(NEWS_ERROR.CATEGORY_NOT_FOUND);
+    if (dto.categoryId && !categoryExists) {
+      throw new BadRequestException(NEWS_ERRORS.CATEGORY_NOT_FOUND);
     }
-    const news = await this.prisma.news.create({
+
+    const news = await this.prismaService.news.create({
       data: {
-        title: createNewsDto.title,
-        slug: generateSlug(createNewsDto.title),
-        content: createNewsDto.content,
+        title: dto.title,
+        slug: generateSlug(dto.title),
+        content: dto.content,
         imageUrl: imageUrl,
-        isActive: createNewsDto.isActive ?? false,
-        categoryId: createNewsDto.categoryId ?? null,
+        isActive: dto.isActive ?? false,
+        categoryId: dto.categoryId ?? null,
         userId: authorId,
       },
       include: {
@@ -65,20 +115,22 @@ export class NewsService {
     dto: UpdateNewsDto,
     file: Express.Multer.File | undefined,
   ): Promise<{ updated: NewsItemResponse }> {
-    const exist = await this.prisma.news.findUnique({
+    const existing = await this.prismaService.news.findUnique({
       where: { id: id },
       include: { user: true },
     });
-    if (!exist) {
-      throw new BadRequestException(NEWS_ERROR.NOT_FOUND);
+
+    if (!existing) {
+      throw new NotFoundException(NEWS_ERRORS.NOT_FOUND);
     }
-    let imageUrl = exist.imageUrl;
+
+    let imageUrl = existing.imageUrl;
     if (file) {
       imageUrl = getImagePublicUrl(file.filename, this.configService);
     }
 
-    let slug = exist.slug;
-    if (dto.title && dto.title !== exist.title) {
+    let slug = existing.slug;
+    if (dto.title && dto.title !== existing.title) {
       slug = generateSlug(dto.title);
     }
 
@@ -86,75 +138,62 @@ export class NewsService {
       title: dto.title,
       content: dto.content,
       isActive: dto.isActive,
-      slug: slug,
       imageUrl: imageUrl,
+      slug: slug,
     };
-    const updated = await this.prisma.news.update({
-      where: { id },
+
+    if (dto.categoryId) {
+      data.category = {
+        connect: { id: dto.categoryId },
+      };
+    }
+
+    const updated = await this.prismaService.news.update({
+      where: { id: id },
       data: data,
       include: {
         user: { select: { id: true, email: true, fullName: true } },
         category: { select: { id: true, title: true, slug: true } },
       },
     });
+
     return { updated: updated };
   }
-  async findById(id: string): Promise<{ news: NewsItemResponse }> {
-    const exist = await this.prisma.news.findUnique({
-      where: { id: id },
-      include: {
+
+  async findOne(slug: string): Promise<{ news: NewsItemResponse }> {
+    const news = await this.prismaService.news.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        content: true,
+        imageUrl: true,
+        isActive: true,
+        createdAt: true,
         user: { select: { id: true, email: true, fullName: true } },
         category: { select: { id: true, title: true, slug: true } },
       },
     });
-    if (!exist) {
-      throw new BadRequestException(NEWS_ERROR.NOT_FOUND);
+    if (!news || !news.isActive) {
+      throw new NotFoundException(NEWS_ERRORS.NOT_FOUND);
     }
-    return { news: exist };
-  }
-  async findAll(query: NewsQueryParams): Promise<{ news: NewsListResponse }> {
-    const {
-      page = NEWS_DEFAULT.PAGE,
-      limit = NEWS_DEFAULT.LIMIT,
-      categoryId,
-      sortBy,
-      orderBy,
-    } = query;
-
-    const skip = (page - 1) * limit;
-
-    const [items, total] = await Promise.all([
-      this.prisma.news.findMany({
-        where: {
-          categoryId: categoryId ?? undefined,
-          isActive: true,
-        },
-        skip: skip,
-        take: Math.min(limit, NEWS_DEFAULT.MAX_LIMIT),
-        orderBy: {
-          [sortBy ?? NEWS_DEFAULT.SORT_BY]: orderBy ?? NEWS_DEFAULT.SORT_ORDER,
-        },
-        include: {
-          user: { select: { id: true, email: true, fullName: true } },
-          category: { select: { id: true, title: true, slug: true } },
-        },
-      }),
-      this.prisma.news.count({
-        where: {
-          categoryId: categoryId ?? undefined,
-          isActive: true,
-        },
-      }),
-    ]);
-
     return {
-      news: {
-        items,
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
-      },
+      news,
+    };
+  }
+  async remove(id: string): Promise<{ message: string }> {
+    const existing = await this.prismaService.news.findUnique({
+      where: { id: id },
+    });
+    if (!existing) {
+      throw new NotFoundException(NEWS_ERRORS.NOT_FOUND);
+    }
+    await this.prismaService.news.delete({
+      where: { id: id },
+    });
+    return {
+      message: `Deleted`,
     };
   }
 }

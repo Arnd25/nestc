@@ -1,22 +1,21 @@
 export enum NewsSortField {
   title = 'title',
   createdAt = 'createdAt',
-  updatedAt = 'updatedAt',
   isActive = 'isActive',
 }
 
-export enum NewsSortDirection {
+export enum SortDirection {
   asc = 'asc',
   desc = 'desc',
 }
 
 export interface NewsQueryParams {
-  categoryId: string;
-  published?: boolean;
-  page?: number;
-  limit?: number;
-  sortBy?: NewsSortField;
-  orderBy?: NewsSortDirection;
+  categoryId?: string;
+  isActive?: boolean;
+  page: number;
+  limit: number;
+  sortBy: NewsSortField;
+  order: SortDirection;
 }
 
 export interface NewsItemResponse {
@@ -33,15 +32,16 @@ export interface NewsItemResponse {
     title: string;
     slug: string;
   } | null;
+
   user: {
     id: string;
-    fullName: string;
     email: string;
+    fullName: string;
   } | null;
 }
 
 export interface NewsListResponse {
-  items?: NewsItemResponse[];
+  items: NewsItemResponse[];
   total: number;
   page: number;
   pages: number;

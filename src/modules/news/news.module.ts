@@ -8,18 +8,18 @@ import { multerImageOptions } from '../../common/utils/file-upload.util';
 import { CategoriesModule } from '../categories/categories.module';
 
 @Module({
-  controllers: [NewsController],
-  providers: [NewsService],
   imports: [
     PrismaModule,
     CategoriesModule,
     MulterModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
+      useFactory: (configService: ConfigService)=> {
         return multerImageOptions(configService);
       },
     }),
   ],
+  controllers: [NewsController],
+  providers: [NewsService],
 })
 export class NewsModule {}

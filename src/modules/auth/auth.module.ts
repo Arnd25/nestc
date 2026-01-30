@@ -11,15 +11,15 @@ import { PrismaModule } from '../prisma/prisma.module';
   imports: [
     JwtModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (configSetvice: ConfigService) => ({
-        secret: configSetvice.get<string>('JWT_ACCESS_SECRET') as any,
+      useFactory: (configService: ConfigService)=> ({
+        secret: configService.get<string>('JWT_ACCESS_SECRET') as any,
         signOptions: {
-          expiresIn: configSetvice.get<string>('JWT_ACCESS_REFRESH_IN') as any,
+          expiresIn: configService.get<string>('JWT_ACCESS_EXPIRES_IN') as any,
         },
       }),
     }),
-    PassportModule,
     PrismaModule,
+    PassportModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

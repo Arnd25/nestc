@@ -1,22 +1,13 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
-import { UpdateCategoryDto } from './dto/update-category.dto';
-import { CreateCategoryDto } from './dto/create-category.dto';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { AppRole } from '../../common/types/shared.type';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { Roles } from '../../common/decorations/roles.decorator';
-import { AppRole } from '../../common/type/shared.type';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Controller('categories')
-@UseGuards(JwtAuthGuard)
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
@@ -29,22 +20,25 @@ export class CategoriesController {
   async findOne(@Param('id') id: string) {
     return this.categoriesService.findOne(id);
   }
-  @Roles(AppRole.ADMIN)
+
   @Post()
-  async create(@Body() createCategoryDto: CreateCategoryDto) {
-    return this.categoriesService.create(createCategoryDto);
-  }
   @Roles(AppRole.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async create(@Body() dto: CreateCategoryDto) {
+    return this.categoriesService.create(dto);
+  }
+
   @Patch(':id')
-  async update(
-    @Param('id') id: string,
-    @Body() updateCategoryDto: UpdateCategoryDto,
-  ) {
-    return this.categoriesService.update(id, updateCategoryDto);
-  }
   @Roles(AppRole.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async update(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
+    return this.categoriesService.update(id, dto);
+  }
+
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  @Roles(AppRole.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async delete(@Param('id') id: string) {
     return this.categoriesService.remove(id);
   }
 }
